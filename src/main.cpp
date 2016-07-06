@@ -28,6 +28,8 @@ int loopint(int what, int howmuch, int howbig);
 int rando(int start, int endnum);
 segment offsetX(segment thing, int offset);
 float intersects(segment one, segment two);
+unsigned long int getHighScore();
+void setHighScore(unsigned long int score);
 
 enum buttonState {BUTTON_OFF, BUTTON_ON};
 enum jumpState {ON_GROUND, IN_AIR};
@@ -415,6 +417,30 @@ int main(int argc, char *argv[]) {
                 scoreMsg = NULL;
                 SDL_FreeSurface(scoreMsg);
             } else {
+                unsigned long int highscore = getHighScore();
+                if (highscore < score) {
+                    setHighScore(score);
+                    highscore = score;
+                }
+
+                SDL_Color color= {0,0,0};
+                SDL_Surface *scoreMsg;
+                std::string scoreString = "High Score: ";
+                std::string scoreNumString;
+                std::ostringstream convert;
+                convert << highscore;
+                scoreNumString = convert.str();
+                scoreString.append(scoreNumString);
+                scoreMsg = TTF_RenderText_Blended(scoreFont, scoreString.c_str(), color);
+                SDL_Texture* Message = NULL;
+                Message = SDL_CreateTextureFromSurface(ren, scoreMsg);
+                scorePos.x = 0;
+                scorePos.y = 0;
+                scorePos.w = scoreMsg->w;
+                scorePos.h = scoreMsg->h;
+                SDL_RenderCopy(ren, Message, NULL, &scorePos);
+                scoreMsg = NULL;
+                SDL_FreeSurface(scoreMsg);
                 score = 0;
             }
 
@@ -572,4 +598,26 @@ float intersects(segment one, segment two) {
     }
     else
         return 0;
+}
+
+unsigned long int getHighScore() {
+	std::ifstream in("./res/score");
+	unsigned long int highscore;
+	if (in.is_open()) {
+		in >> highscore;
+		return highscore;
+	}
+	else {
+		return 0;
+	}
+}
+
+void setHighScore(unsigned long int score) {
+	std::ofstream scorefile("./res/score");
+	if (scorefile.is_open()) {
+		std::ostringstream convert;
+		convert << score;
+		scorefile <<  convert.str();
+	}
+
 }
