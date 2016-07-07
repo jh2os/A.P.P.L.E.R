@@ -101,7 +101,9 @@ int main(int argc, char *argv[]) {
 
     // Game stuff now
     bool running = true;
-    unsigned long int score = 0;
+    unsigned long int score = 0;SDL_SetRenderDrawColor(ren, 0, 0, 0, 100);
+                SDL_Rect box = makeRect(640 / 20, 480 / 4, 640 / 20 * 18, 480 / 1.75);
+                SDL_RenderFillRect(ren, &box);
     SDL_Rect  scorePos;
     float playerVel = 0.0f;
     float playerY = 0.0f;
@@ -114,7 +116,8 @@ int main(int argc, char *argv[]) {
     int obsticalArray[] = {0,0,0,0,0};
     int obsticalPosA[] = {0, 680, 1360, 2040, 2720};
     gameState stage = TITLE;
-
+    gameState buffer = TITLE;
+    int flashsize = 0;
 
     // Load In all of our textures
     textures.insert(std::make_pair("ground", loadImg(ren, "./res/reg/ground2.bmp")));
@@ -211,7 +214,15 @@ int main(int argc, char *argv[]) {
                     }
 
                     if (key == SDLK_ESCAPE) {
-                        running = false;
+                        if (stage == PAUSE) {
+                            changeState(stage, buffer);
+                        }
+                        else if (stage != PAUSE) {
+                            buffer = stage;
+                            changeState(stage, PAUSE);
+
+                        }
+
                     }
                 }
 
@@ -386,29 +397,37 @@ int main(int argc, char *argv[]) {
 //--------------------------------------------//
             SDL_RenderClear(ren);
             SDL_RenderCopy(ren, textures["sky"], NULL, NULL);
-
-            // Each layer has it's own scroll speed and position, function just moves them and displays them
-            scrollLayer(ren, "clouds", 1, cloudPos);
-            scrollLayer(ren, "mnt1", 2, m2pos);
-            scrollLayer(ren, "mnt2", 3, scrollPos);
-            scrollLayer(ren, "mnt3", 5, m3pos);
-
+            if (stage != PAUSE) {
+                // Each layer has it's own scroll speed and position, function just moves them and displays them
+                scrollLayer(ren, "clouds", 1, cloudPos);
+                scrollLayer(ren, "mnt1", 2, m2pos);
+                scrollLayer(ren, "mnt2", 3, scrollPos);
+                scrollLayer(ren, "mnt3", 5, m3pos);
+            } else {
+                scrollLayer(ren, "clouds", 0, cloudPos);
+                scrollLayer(ren, "mnt1", 0, m2pos);
+                scrollLayer(ren, "mnt2", 0, scrollPos);
+                scrollLayer(ren, "mnt3", 0, m3pos);
+            }
             // Move and change obstical things for each one and display them
             for (int i = 0; i < 5; i++) {
-                obsticalPosA[i] -= obspeed;
-                if (obsticalPosA[i] <= 0 - obsticals[obsticalArray[i]].width) {
-                    // Move position i to last x coordinate
-                    obsticalPosA[i] = obsticalPosA[loopint(i, 4, 5)] + obsticals[obsticalArray[loopint(i, 4, 5)]].width;
-                    if (stage != GAME && stage != PAUSE)
-                        obsticalArray[i] = 0;
-                    else
-                        // Change it's type
-                        obsticalArray[i] = rando(0, obsticals.size());
+                if (stage != PAUSE) {
+                    obsticalPosA[i] -= obspeed;
+                    if (obsticalPosA[i] <= 0 - obsticals[obsticalArray[i]].width) {
+                        // Move position i to last x coordinate
+                        obsticalPosA[i] = obsticalPosA[loopint(i, 4, 5)] + obsticals[obsticalArray[loopint(i, 4, 5)]].width;
+                        if (stage != GAME && stage != PAUSE)
+                            obsticalArray[i] = 0;
+                        else
+                            // Change it's type
+                            obsticalArray[i] = rando(0, obsticals.size());
 
-                    obsticalPos = loopint(i,1,5);
+                        obsticalPos = loopint(i,1,5);
 
 
+                    }
                 }
+
                 SDL_Rect obpos;
                 obpos.x = obsticalPosA[i];
                 obpos.y = 0;
@@ -501,6 +520,7 @@ int main(int argc, char *argv[]) {
 
                 SDL_Texture * ded;
                 SDL_Color red = {255,0,0};
+                SDL_Color white = {255,255,255};
                 std::string dedstr = "A.P.P.L.E.R.";
 
                 SDL_SetRenderDrawColor(ren, 0, 0, 0, 100);
@@ -512,10 +532,30 @@ int main(int argc, char *argv[]) {
                 SDL_RenderCopy(ren, ded, NULL, &scorePos);
                 SDL_DestroyTexture(ded);
 
+                dedstr = "With Micro-Transactions!!!";
+                ded = wordTexture(ren, scoreFont, dedstr.c_str(), white);
+                float flashx = 640/7;
+                float flashy = 480 / 3 * 2 ;
+                float flashw = getTextureW(ded)/4 *3;
+                float flashh = getTextureH(ded)/4 * 3;
+                if(SDL_GetTicks() % 1000 > 500 ) {
+                    flashsize = (flashsize <= 0 ) ? 0 : flashsize - 1;
+                } else {
+                    flashsize = flashsize ++;
+                }
+                scorePos = makeRect(flashx + flashsize *flashsize /4 , flashy + flashsize, flashw - flashsize*flashsize /2, flashh- flashsize);
+                SDL_RenderCopyEx(ren, ded, NULL, &scorePos, -10, NULL, SDL_FLIP_NONE);
+                SDL_DestroyTexture(ded);
+
                 //SDL_RenderCopy(ren, textures["title"],NULL,NULL);
                 break;
             }
-            case PAUSE: {;}
+            case PAUSE: {
+                SDL_SetRenderDrawColor(ren, 0, 0, 0, 100);
+                SDL_Rect box = makeRect(640 / 20, 480 / 4, 640 / 20 * 18, 480 / 1.75);
+                SDL_RenderFillRect(ren, &box);
+                break;
+            }
             }
 
             if (stage != DEATH) {
