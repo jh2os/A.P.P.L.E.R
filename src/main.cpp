@@ -15,6 +15,10 @@ struct obstical {
     int width;
 };
 
+enum gameState {TITLE, GAME, PAUSE, DEATH};
+enum buttonState {BUTTON_OFF, BUTTON_ON};
+enum jumpState {ON_GROUND, IN_AIR};
+
 // Declare functions
 SDL_Window* initSDL();
 bool checkWindow(SDL_Window*);  // Checks if a window exists
@@ -30,13 +34,19 @@ segment offsetX(segment thing, int offset);
 float intersects(segment one, segment two);
 unsigned long int getHighScore();
 void setHighScore(unsigned long int score);
+void changeState(gameState & oldState, gameState newState);
+std::string num2str(int num);
+std::string num2str(unsigned long int num);
+SDL_Rect makeRect(int x, int y, int w, int h);
+SDL_Texture * wordTexture(SDL_Renderer *ren, TTF_Font * font, std::string thing, SDL_Color color);
+int getTextureW(SDL_Texture* tex);
+int getTextureH(SDL_Texture* tex);
 
-enum buttonState {BUTTON_OFF, BUTTON_ON};
-enum jumpState {ON_GROUND, IN_AIR};
+// GLOBALS
+
 const int groundLevel = 415;
 const int playerForward = 50;
 const int FPS = 60;
-
 unsigned long score = 0;
 float jumpVel = 15;
 float gravity = 50;
@@ -45,34 +55,38 @@ float gravity = 50;
 /* main                                */
 /*-------------------------------------*/
 int main(int argc, char *argv[]) {
-
     // Init stuff & hose cleaning
     SDL_Window *window = initSDL();
     SDL_Event e;
+    // Initialize random number generation
     srand (time(NULL));
 
+    // Create renderer
     SDL_Renderer *ren = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if ( ren == NULL) {
         //std::cout << "SO SAD!!!\t" << SDL_GetError() << std::endl;
         SDL_Quit();
         return -1;
     }
-
+    SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
     if (!checkWindow(window))
         return 1;
 
-    int flags = 0;
+    // Initialize font
     if (TTF_Init() == -1) {
         //printf("TTF_Init: %s\n", TTF_GetError());
         exit(2);
     }
-
     TTF_Font *scoreFont;
-    scoreFont = TTF_OpenFont("./res/fonts/3Dumb.ttf", 24);
+    TTF_Font *titleFont;
+    TTF_Font *huge;
+    titleFont = TTF_OpenFont("./res/fonts/3Dumb.ttf", 60);
+    scoreFont = TTF_OpenFont("./res/fonts/3Dumb.ttf", 48);
+    huge = TTF_OpenFont("./res/fonts/3Dumb.ttf", 64);
     if( !scoreFont ) {
         //printf("TTF_OpenFontIndex: %s\n", TTF_GetError());
     }
-
+    int flags = 0;
     int initted = Mix_Init(flags);
     if ((initted&flags) != flags) {
         //std::cout << "Mix_Init: Failed to init required support\n";
@@ -82,6 +96,9 @@ int main(int argc, char *argv[]) {
     if( Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096) == -1) {
         //std::cout << "Mixer init: failed to initialize mixer" << std::endl;
     }
+
+
+
     // Game stuff now
     bool running = true;
     unsigned long int score = 0;
@@ -96,6 +113,7 @@ int main(int argc, char *argv[]) {
     int obsticalPos = 0;
     int obsticalArray[] = {0,0,0,0,0};
     int obsticalPosA[] = {0, 680, 1360, 2040, 2720};
+    gameState stage = TITLE;
 
 
     // Load In all of our textures
@@ -140,7 +158,7 @@ int main(int argc, char *argv[]) {
     unsigned long int target = currentTick + 1000 / FPS;
 
     // Setting this to true will restart the game
-    bool titlescreen = true;
+    //bool titlescreen = true;
 
 
     // What happens
@@ -150,8 +168,13 @@ int main(int argc, char *argv[]) {
         if (currentTick >= target) {
             target = currentTick + 1000/FPS;
 
+//-------------------------------------------//SDL_Rect setRect(SDL_Rect & rect, int x, int y, int w, int h)
+// HANDLE GAMESTATE SWITCHES                 //
+//-------------------------------------------//
             // if true, restart game
-            if(titlescreen == true) {
+            switch (stage) {
+            case DEATH:
+            case TITLE:
                 for (int i = 0; i < 5; i++)
                     obsticalArray[i] = 0;
                 playerVel = 0.0f;
@@ -162,8 +185,13 @@ int main(int argc, char *argv[]) {
                     Mix_FadeInMusic(music["appler"], -1, 5000);
                     musicStart = 1;
                 }
+            default:;
+
             }
 
+//------------------------------------------//
+// GET INPUT EVENTS                         //
+//------------------------------------------//
             // Get physical events
             while(SDL_PollEvent(&e) != 0) {
                 // Quit is pressed
@@ -173,7 +201,10 @@ int main(int argc, char *argv[]) {
 
                 if (e.type == SDL_KEYDOWN) {
                     SDL_Keycode key = e.key.keysym.sym;
-                    titlescreen = false;
+                    if (stage == DEATH)
+                        changeState(stage, TITLE);
+                    else if (stage != GAME && stage != PAUSE)
+                        changeState(stage, GAME);
                     if( key == SDLK_SPACE) {
                         currentButtonState = BUTTON_ON;
 
@@ -204,7 +235,10 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 if (e.type == SDL_CONTROLLERBUTTONDOWN) {
-                    titlescreen = false;
+                    if (stage == DEATH)
+                        changeState(stage, TITLE);
+                    if (stage != GAME && stage != PAUSE)
+                        changeState(stage, GAME);
                     currentButtonState = BUTTON_ON;
                     //std::cout << "BUTTON DOWN, I repeat... BUTTON DOWN!!!" << std::endl;
                 }
@@ -214,111 +248,109 @@ int main(int argc, char *argv[]) {
             }
 
 
+//-------------------------------------------//
+// EVENT HANDLING                            //
+//-------------------------------------------//
             // Enter game logic
             // Jump!!!
-            if (currentButtonState == BUTTON_ON && currentJumpState == ON_GROUND) {
-                playerVel = jumpVel;
-                playerY += 0.001f;
-                currentJumpState = IN_AIR;
-                float jumpVol = .2;
-                int chan = Mix_PlayChannel(-1, jumpS, 0);
-                Mix_Volume(chan, MIX_MAX_VOLUME * (volume * jumpVol));
-            } else {
-                // Reverse jump!!!
-                playerVel -= gravity * ((1000 / (float)FPS) /1000 );
-            }
-
-            // For the next two obsticals, get the number of ground segments and kill segments
-            int numoflife  = obsticals[obsticalArray[obsticalPos]].life.size();
-            int numofDeath = obsticals[obsticalArray[obsticalPos]].death.size();
-            int numoflife2 = obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life.size();
-            int numofDeath2= obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death.size();
-
-            // Assume we are in the air so we fall if necessary
-            currentJumpState = IN_AIR;
-
-            // Loop through all the ground segments and see if we are touching any, if we are set currentJumpState to ON_GROUND
-            // and exit the ltexoop
-            for(int i = 0; i < numoflife; i++) {
-                if (obsticals[obsticalArray[obsticalPos]].life[i].x1 + obsticalPosA[obsticalPos] <= playerForward + 50 &&
-                    obsticals[obsticalArray[obsticalPos]].life[i].x2 + obsticalPosA[obsticalPos] >= playerForward ) {
-                    if (playerY == (float)groundLevel- obsticals[obsticalArray[obsticalPos]].life[i].y1) {
-                        playerY = groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1;
-                        currentJumpState = ON_GROUND;
-                        playerVel = 0;
-                        break;
-                    } else if ((playerY  > groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1 ) ) {
-                            if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1 ) {
-                                playerY = groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1;
-                                playerVel = 0;
-                                currentJumpState = ON_GROUND;
-                                break;
-                            }
-                        }
+            if (stage == GAME) {
+                if (currentButtonState == BUTTON_ON && currentJumpState == ON_GROUND) {
+                    playerVel = jumpVel;
+                    playerY += 0.001f;
+                    currentJumpState = IN_AIR;
+                    float jumpVol = .2;
+                    int chan = Mix_PlayChannel(-1, jumpS, 0);
+                    Mix_Volume(chan, MIX_MAX_VOLUME * (volume * jumpVol));
+                } else {
+                    // Reverse jump!!!
+                    playerVel -= gravity * ((1000 / (float)FPS) /1000 );
                 }
             }
-            // If we haven't touched ground on the previous obstical, check the next one
-            if (currentJumpState == IN_AIR) {
-                for(int i = 0; i < numoflife2; i++) {
-                    if (obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].x1 + obsticalPosA[loopint(obsticalPos, 1, 5)] <= playerForward + 50 &&
-                    obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].x2 + obsticalPosA[loopint(obsticalPos, 1, 5)] >= playerForward ) {
-                        if (playerY == (float)groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) {
-                            playerY = groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1;
+//----------------------------------------------//
+// COLLISION DECTECTION                         //
+//----------------------------------------------//
+            if (stage == GAME) {
+                // For the next two obsticals, get the number of ground segments and kill segments
+                int numoflife  = obsticals[obsticalArray[obsticalPos]].life.size();
+                int numofDeath = obsticals[obsticalArray[obsticalPos]].death.size();
+                int numoflife2 = obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life.size();
+                int numofDeath2= obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death.size();
+
+                // Assume we are in the air so we fall if necessary
+                currentJumpState = IN_AIR;
+
+                // Loop through all the ground segments and see if we are touching any, if we are set currentJumpState to ON_GROUND
+                // and exit the ltexoop
+                for(int i = 0; i < numoflife; i++) {
+                    if (obsticals[obsticalArray[obsticalPos]].life[i].x1 + obsticalPosA[obsticalPos] <= playerForward + 50 &&
+                        obsticals[obsticalArray[obsticalPos]].life[i].x2 + obsticalPosA[obsticalPos] >= playerForward ) {
+                        if (playerY == (float)groundLevel- obsticals[obsticalArray[obsticalPos]].life[i].y1) {
+                            playerY = groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1;
                             currentJumpState = ON_GROUND;
                             playerVel = 0;
                             break;
-                        } else if ((playerY > groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) ) {
-                            if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) {
+                        } else if ((playerY  > groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1 ) ) {
+                                if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1 ) {
+                                    playerY = groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1;
+                                    playerVel = 0;
+                                    currentJumpState = ON_GROUND;
+                                    break;
+                                }
+                            }
+                    }
+                }
+                // If we haven't touched ground on the previous obstical, check the next one
+                if (currentJumpState == IN_AIR) {
+                    for(int i = 0; i < numoflife2; i++) {
+                        if (obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].x1 + obsticalPosA[loopint(obsticalPos, 1, 5)] <= playerForward + 50 &&
+                        obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].x2 + obsticalPosA[loopint(obsticalPos, 1, 5)] >= playerForward ) {
+                            if (playerY == (float)groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) {
                                 playerY = groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1;
-                                playerVel = 0;
                                 currentJumpState = ON_GROUND;
+                                playerVel = 0;
                                 break;
+                            } else if ((playerY > groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) ) {
+                                if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) {
+                                    playerY = groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1;
+                                    playerVel = 0;
+                                    currentJumpState = ON_GROUND;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Lol if we are still not touching any ground, decrease velocity or fall
-            if (currentJumpState == IN_AIR) {
-                playerY += playerVel;
-            }
-
-
-            // Collision detection for death segments
-            segment playerTop;
-            segment playerBot;
-            segment playerLef;
-            segment playerRig;
+                // Lol if we are still not touching any ground, decrease velocity or fall
+                if (currentJumpState == IN_AIR) {
+                    playerY += playerVel;
+                }
 
 
+                // Collision detection for death segments
+                segment playerTop;
+                segment playerBot;
+                segment playerLef;
+                segment playerRig;
 
-            //    _____
-            //    |   |
-            //    |   |                Mix_PauseMusic();
-            //    |   |
-            //    -----
-            //
-            //-----------------
+                // Set all of the vars ever
+                playerTop.x1 = playerForward;
+                playerBot.x1 = playerForward;
+                playerLef.x1 = playerForward;
+                playerRig.x1 = playerForward + 50;
+                playerTop.y1 = groundLevel - 50 - playerY;
+                playerBot.y1 = groundLevel - playerY;
+                playerLef.y1 = groundLevel - 50 - playerY;
+                playerRig.y1 = groundLevel - 50 - playerY;
+                playerTop.x2 = playerForward + 50;
+                playerBot.x2 = playerForward + 50;
+                playerLef.x2 = playerForward + 1;
+                playerRig.x2 = playerForward + 49;
+                playerTop.y2 = groundLevel - playerY - 50;
+                playerBot.y2 = groundLevel - playerY;
+                playerLef.y2 = groundLevel - playerY;
+                playerRig.y2 = groundLevel - playerY;
 
-            // Set all of the vars ever
-            playerTop.x1 = playerForward;
-            playerBot.x1 = playerForward;
-            playerLef.x1 = playerForward;
-            playerRig.x1 = playerForward + 50;
-            playerTop.y1 = groundLevel - 50 - playerY;
-            playerBot.y1 = groundLevel - playerY;
-            playerLef.y1 = groundLevel - 50 - playerY;
-            playerRig.y1 = groundLevel - 50 - playerY;
-            playerTop.x2 = playerForward + 50;
-            playerBot.x2 = playerForward + 50;
-            playerLef.x2 = playerForward + 1;
-            playerRig.x2 = playerForward + 49;
-            playerTop.y2 = groundLevel - playerY - 50;
-            playerBot.y2 = groundLevel - playerY;
-            playerLef.y2 = groundLevel - playerY;
-            playerRig.y2 = groundLevel - playerY;
-            if(!titlescreen) {
                 for(int i = 0; i < numofDeath; i++) {
 
                     segment deathseg = offsetX(obsticals[obsticalArray[obsticalPos]].death[i], obsticalPosA[obsticalPos] );
@@ -327,41 +359,31 @@ int main(int argc, char *argv[]) {
                     float lef =  intersects(playerLef, deathseg);
                     float rig = intersects(playerRig, deathseg);
 
-                    if ( top ){
-                        titlescreen = true;
-                        musicStart = 0;
-                    }
-                    if ( bot ) {
-                        titlescreen = true;
-                        musicStart = 0;
-                    }
-                    if ( lef ) {
-                        titlescreen = true;
-                        musicStart = 0;
-                    }
-                    if ( rig ) {
-                        titlescreen = true;
+                    if ( top || bot || lef || rig){
+                        changeState(stage, DEATH);
                         musicStart = 0;
                     }
 
                 }
+
+                for(int i = 0; i < numofDeath2; i++) {
+                    // @TODO make these if cases like the ones above
+                    float top = intersects(playerTop, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
+                    float bot = intersects(playerBot, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
+                    float lef = intersects(playerLef, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
+                    float rig = intersects(playerRig, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
+                    if ( top || bot || lef || rig ) {
+                        changeState(stage, DEATH);
+                        musicStart = 0;
+                    }
+
+                }
+                // End collision detection
             }
-            for(int i = 0; i < numofDeath2; i++) {
-                // @TODO make these if cases like the ones above
-                if ( intersects(playerTop, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]) )
-                    titlescreen = true;
-                if ( intersects(playerBot, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]) )
-                    titlescreen = true;
-                if ( intersects(playerLef, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]) )
-                    titlescreen = true;
-                if ( intersects(playerRig, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]) )
-                    titlescreen = true;
 
-            }
-            // End collision detection
-
-
-            // let's render some stuff!
+//--------------------------------------------//
+// RENDER                                     //
+//--------------------------------------------//
             SDL_RenderClear(ren);
             SDL_RenderCopy(ren, textures["sky"], NULL, NULL);
 
@@ -377,7 +399,7 @@ int main(int argc, char *argv[]) {
                 if (obsticalPosA[i] <= 0 - obsticals[obsticalArray[i]].width) {
                     // Move position i to last x coordinate
                     obsticalPosA[i] = obsticalPosA[loopint(i, 4, 5)] + obsticals[obsticalArray[loopint(i, 4, 5)]].width;
-                    if (titlescreen)
+                    if (stage != GAME && stage != PAUSE)
                         obsticalArray[i] = 0;
                     else
                         // Change it's type
@@ -396,15 +418,13 @@ int main(int argc, char *argv[]) {
 
             }
 
-            if (!titlescreen) {
+            switch(stage) {
+            case GAME: {
                 score++;
                 SDL_Color color= {0,0,0};
                 SDL_Surface *scoreMsg;
                 std::string scoreString = "SCORE: ";
-                std::string scoreNumString;
-                std::ostringstream convert;
-                convert << score;
-                scoreNumString = convert.str();
+                std::string scoreNumString = num2str(score);
                 scoreString.append(scoreNumString);
                 scoreMsg = TTF_RenderText_Blended(scoreFont, scoreString.c_str(), color);
                 SDL_Texture* Message = NULL;
@@ -416,20 +436,55 @@ int main(int argc, char *argv[]) {
                 SDL_RenderCopy(ren, Message, NULL, &scorePos);
                 scoreMsg = NULL;
                 SDL_FreeSurface(scoreMsg);
-            } else {
+                break;
+            }
+            case DEATH: {
                 unsigned long int highscore = getHighScore();
                 if (highscore < score) {
                     setHighScore(score);
                     highscore = score;
                 }
+                SDL_Texture * ded;
+                SDL_Texture * playerScore;
+                SDL_Texture * highscoreMessage;
+                SDL_Color color= {255,255,255};
+                SDL_Color red = {255,0,0};
+                std::string playerScoreStr = "Your Score: ";
+                std::string scoreString = "High Score: ";
+                std::string dedstr = "DED";
+                playerScoreStr.append(num2str(score));
+                scoreString.append(num2str(highscore));
+
+                SDL_SetRenderDrawColor(ren, 0, 0, 0, 100);
+                SDL_Rect box = makeRect(640 / 20, 480 / 4, 640 / 20 * 18, 480 / 1.75);
+                SDL_RenderFillRect(ren, &box);
+
+                ded = wordTexture(ren, titleFont, dedstr.c_str(), red);
+                scorePos = makeRect(640/2 - (getTextureW(ded)/2), 480 / 3, getTextureW(ded), getTextureH(ded));
+                SDL_RenderCopy(ren, ded, NULL, &scorePos);
+
+                playerScore = wordTexture(ren, scoreFont, playerScoreStr.c_str(), color);
+                scorePos = makeRect( (640 / 2 - (getTextureW(playerScore) /2)), 480 / 2, getTextureW(playerScore), getTextureH(playerScore));
+                SDL_RenderCopy(ren, playerScore, NULL, &scorePos);
+
+                highscoreMessage = wordTexture(ren, scoreFont, scoreString.c_str(), color);
+                scorePos = makeRect( (640 / 2 - (getTextureW(highscoreMessage) / 2)) , (480 / 3 * 2) , getTextureW(highscoreMessage), getTextureH(highscoreMessage));
+
+                SDL_RenderCopy(ren, highscoreMessage, NULL, &scorePos);
+                SDL_DestroyTexture(ded);
+                SDL_DestroyTexture(playerScore);
+                SDL_DestroyTexture(highscoreMessage);
+
+
+                break;
+            }
+            case TITLE: {
+                unsigned long int highscore = getHighScore();
 
                 SDL_Color color= {0,0,0};
                 SDL_Surface *scoreMsg;
                 std::string scoreString = "High Score: ";
-                std::string scoreNumString;
-                std::ostringstream convert;
-                convert << highscore;
-                scoreNumString = convert.str();
+                std::string scoreNumString = num2str(highscore);
                 scoreString.append(scoreNumString);
                 scoreMsg = TTF_RenderText_Blended(scoreFont, scoreString.c_str(), color);
                 SDL_Texture* Message = NULL;
@@ -439,20 +494,39 @@ int main(int argc, char *argv[]) {
                 scorePos.w = scoreMsg->w;
                 scorePos.h = scoreMsg->h;
                 SDL_RenderCopy(ren, Message, NULL, &scorePos);
-                scoreMsg = NULL;
                 SDL_FreeSurface(scoreMsg);
+                SDL_DestroyTexture(Message);
                 score = 0;
+
+
+                SDL_Texture * ded;
+                SDL_Color red = {255,0,0};
+                std::string dedstr = "A.P.P.L.E.R.";
+
+                SDL_SetRenderDrawColor(ren, 0, 0, 0, 100);
+                SDL_Rect box = makeRect(640 / 6, 480 / 4, 640 / 6 * 4, 480 / 3.30);
+                SDL_RenderFillRect(ren, &box);
+
+                ded = wordTexture(ren, huge, dedstr.c_str(), red);
+                scorePos = makeRect(640/2 - (getTextureW(ded)/2), 480 / 3, getTextureW(ded), getTextureH(ded));
+                SDL_RenderCopy(ren, ded, NULL, &scorePos);
+                SDL_DestroyTexture(ded);
+
+                //SDL_RenderCopy(ren, textures["title"],NULL,NULL);
+                break;
+            }
+            case PAUSE: {;}
             }
 
-            // Create the box for where our player is
-            SDL_Rect playerRec;
-            playerRec.x = playerForward;
-            playerRec.y = (int)groundLevel - 50 - playerY;
-            playerRec.w = playerRec.h = 50;
-            SDL_RenderCopy(ren, textures["player"], NULL, &playerRec);
+            if (stage != DEATH) {
+                // Create the box for where our player is
+                SDL_Rect playerRec;
+                playerRec.x = playerForward;
+                playerRec.y = (int)groundLevel - 50 - playerY;
+                playerRec.w = playerRec.h = 50;
+                SDL_RenderCopy(ren, textures["player"], NULL, &playerRec);
+            }
 
-            if (titlescreen)
-                SDL_RenderCopy(ren, textures["title"],NULL,NULL);
 
 
 
@@ -620,4 +694,50 @@ void setHighScore(unsigned long int score) {
 		scorefile <<  convert.str();
 	}
 
+}
+
+void changeState(gameState& oldState,gameState newState) {
+    oldState = newState;
+}
+
+std::string num2str(int num) {
+    std::ostringstream convert;
+    convert << num;
+    return convert.str();
+}
+
+std::string num2str(unsigned long int num) {
+    std::ostringstream convert;
+    convert << num;
+    return convert.str();
+}
+
+SDL_Rect makeRect(int x, int y, int w, int h) {
+    SDL_Rect rect;
+    rect.x = x;
+    rect.y = y;
+    rect.w = w;
+    rect.h = h;
+    return rect;
+}
+
+SDL_Texture * wordTexture(SDL_Renderer* ren, TTF_Font * font, std::string thing, SDL_Color color) {
+    SDL_Surface *tmp = NULL;
+    SDL_Texture * message = NULL;
+    tmp = TTF_RenderText_Blended(font, thing.c_str(), color);
+    message = SDL_CreateTextureFromSurface(ren, tmp);
+    SDL_FreeSurface(tmp);
+    return message;
+}
+
+int getTextureW(SDL_Texture* tex) {
+    int w,h;
+    SDL_QueryTexture(tex, NULL, NULL, &w, &h);
+    return w;
+}
+
+int getTextureH(SDL_Texture* tex) {
+    int w,h;
+    SDL_QueryTexture(tex, NULL, NULL, &w, &h);
+    return h;
 }
