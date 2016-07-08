@@ -41,6 +41,8 @@ SDL_Rect makeRect(int x, int y, int w, int h);
 SDL_Texture * wordTexture(SDL_Renderer *ren, TTF_Font * font, std::string thing, SDL_Color color);
 int getTextureW(SDL_Texture* tex);
 int getTextureH(SDL_Texture* tex);
+std::vector<std::string> randwords;
+void loadwords();
 
 // GLOBALS
 
@@ -155,6 +157,8 @@ int main(int argc, char *argv[]) {
     unsigned int m2pos = 0;
     unsigned int m3pos = 0;
     unsigned int cloudPos = 0;
+    int randword = 0;
+    int randcount = 0;
 
     // Set FPS Vars
     unsigned long int currentTick = SDL_GetTicks();
@@ -163,7 +167,7 @@ int main(int argc, char *argv[]) {
     // Setting this to true will restart the game
     //bool titlescreen = true;
 
-
+    loadwords();
     // What happens
     while(running) {
         // Check if we are within FPS range
@@ -185,7 +189,7 @@ int main(int argc, char *argv[]) {
 
                 if (musicStart == 0) {
                     Mix_HaltMusic();
-                    Mix_FadeInMusic(music["appler"], -1, 5000);
+                    //Mix_FadeInMusic(music["appler"], -1, 5000);
                     musicStart = 1;
                 }
             default:;
@@ -409,7 +413,8 @@ int main(int argc, char *argv[]) {
                 scrollLayer(ren, "mnt2", 0, scrollPos);
                 scrollLayer(ren, "mnt3", 0, m3pos);
             }
-            // Move and change obstical things for each one and display them
+            // Move and change obstical things for each one and display themvoid loadwords() {
+
             for (int i = 0; i < 5; i++) {
                 if (stage != PAUSE) {
                     obsticalPosA[i] -= obspeed;
@@ -455,6 +460,36 @@ int main(int argc, char *argv[]) {
                 SDL_RenderCopy(ren, Message, NULL, &scorePos);
                 scoreMsg = NULL;
                 SDL_FreeSurface(scoreMsg);
+                if (score % 1000 < 100) {
+                    if (randcount == 0)
+                        randword = rando(0,999);
+                    randcount++;
+                    SDL_Texture * ded;
+                    SDL_Color red = {255,0,0};
+                    SDL_Color white = {255,255,255};
+                    std::string dedstr;
+                    if (score < 1000)
+                        dedstr = "START!";
+                    else
+                        dedstr = randwords[randword];
+
+
+                    SDL_SetRenderDrawColor(ren, 0, 0, 0, 100);
+                    SDL_Rect box = makeRect(0, 480 / 4 , 640, 480 / 8);
+                    SDL_RenderFillRect(ren, &box);
+                    dedstr.append("!");
+                    ded = wordTexture(ren, scoreFont, dedstr.c_str(), red);
+
+                    int x = score % 1000;
+                    //int y = -.00001 * ((x-500)*(x-500)*(x-500)) + 320;
+                    float y = .005*pow(x-50,3)+320;
+
+                    scorePos = makeRect(y - getTextureW(ded)/2, 480 / 4 + 480 / 64, getTextureW(ded), getTextureH(ded));
+                    SDL_RenderCopy(ren, ded, NULL, &scorePos);
+                    SDL_DestroyTexture(ded);
+                } else {
+                    randcount = 0;
+                }
                 break;
             }
             case DEATH: {
@@ -780,4 +815,12 @@ int getTextureH(SDL_Texture* tex) {
     int w,h;
     SDL_QueryTexture(tex, NULL, NULL, &w, &h);
     return h;
+}
+
+void loadwords() {
+    std::ifstream in("./res/words");
+    std::string str;
+    while(std::getline(in,str)){
+        randwords.push_back(str);
+    }
 }
