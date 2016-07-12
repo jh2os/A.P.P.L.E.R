@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
 
                 if (musicStart == 0) {
                     Mix_HaltMusic();
-                    //Mix_FadeInMusic(music["appler"], -1, 5000);
+                    Mix_FadeInMusic(music["appler"], -1, 5000);
                     musicStart = 1;
                 }
             default:;
