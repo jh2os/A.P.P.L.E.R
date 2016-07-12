@@ -1,5 +1,7 @@
 #include "includes.h"
 
+int Debug = 0;
+
 //Lets set up some data types
 struct segment {
     int x1;
@@ -15,11 +17,28 @@ struct obstical {
     int width;
 };
 
+/*class Logger {
+public:
+    static Logger* Instance();
+    bool openLogFile(std::string logFile);
+    void writeToLogFile();
+    bool closeLogFile();
+private:
+    Logger(){};
+    Logger(Logger const&){};
+    Logger& operator=(Logger const&){};
+    static Logger* m_pInstance;
+};*/
 enum gameState {TITLE, GAME, PAUSE, DEATH};
 enum buttonState {BUTTON_OFF, BUTTON_ON};
 enum jumpState {ON_GROUND, IN_AIR};
 
 // Declare functions
+void debug(int step) {
+    if (Debug)
+        std::cout << "step: " << step << std::endl;
+}
+
 SDL_Window* initSDL();
 bool checkWindow(SDL_Window*);  // Checks if a window exists
 SDL_Texture * loadImg(SDL_Renderer *ren, std::string);
@@ -168,11 +187,16 @@ int main(int argc, char *argv[]) {
     //bool titlescreen = true;
 
     loadwords();
+
+    int step = 0;
     // What happens
     while(running) {
+        step = 0;
+        debug(++step); // 1
         // Check if we are within FPS range
         currentTick = SDL_GetTicks();
         if (currentTick >= target) {
+            debug(++step); // 2
             target = currentTick + 1000/FPS;
 
 //-------------------------------------------//SDL_Rect setRect(SDL_Rect & rect, int x, int y, int w, int h)
@@ -195,24 +219,29 @@ int main(int argc, char *argv[]) {
             default:;
 
             }
-
+            debug(++step); // 3
 //------------------------------------------//
 // GET INPUT EVENTS                         //
 //------------------------------------------//
             // Get physical events
+            //int eventid = 0;
             while(SDL_PollEvent(&e) != 0) {
+
                 // Quit is pressed
                 if (e.type == SDL_QUIT) {
                     running = false;
                 }
 
                 if (e.type == SDL_KEYDOWN) {
+
                     SDL_Keycode key = e.key.keysym.sym;
-                    if (stage == DEATH)
+                    if (stage == DEATH) {
                         changeState(stage, TITLE);
+                        currentButtonState = BUTTON_OFF;
+                    }
                     else if (stage != GAME && stage != PAUSE)
                         changeState(stage, GAME);
-                    if( key == SDLK_SPACE) {
+                    if( key == SDLK_SPACE && stage == GAME) {
                         currentButtonState = BUTTON_ON;
 
                     }
@@ -231,6 +260,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (e.type == SDL_KEYUP) {
+
                     SDL_Keycode key = e.key.keysym.sym;
 
                     if( key == SDLK_SPACE) {
@@ -239,6 +269,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (e.type == SDL_CONTROLLERDEVICEADDED) {
+
                     SDL_GameController *pad = SDL_GameControllerOpen(int(e.cdevice.which));
                     if (pad) {
                         SDL_Joystick *joy = SDL_GameControllerGetJoystick( pad);
@@ -250,18 +281,23 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 if (e.type == SDL_CONTROLLERBUTTONDOWN) {
-                    if (stage == DEATH)
+
+                    if (stage == DEATH) {
                         changeState(stage, TITLE);
-                    if (stage != GAME && stage != PAUSE)
+                        currentButtonState = BUTTON_OFF;
+                    }
+                    else if (stage != GAME && stage != PAUSE)
                         changeState(stage, GAME);
-                    currentButtonState = BUTTON_ON;
+                    else if (stage == GAME)
+                        currentButtonState = BUTTON_ON;
                     //std::cout << "BUTTON DOWN, I repeat... BUTTON DOWN!!!" << std::endl;
                 }
                 if (e.type == SDL_CONTROLLERBUTTONUP) {
+
                     currentButtonState = BUTTON_OFF;
                 }
             }
-
+            debug(++step); // 4
 
 //-------------------------------------------//
 // EVENT HANDLING                            //
@@ -281,6 +317,7 @@ int main(int argc, char *argv[]) {
                     playerVel -= gravity * ((1000 / (float)FPS) /1000 );
                 }
             }
+            debug(++step); // 5
 //----------------------------------------------//
 // COLLISION DECTECTION                         //
 //----------------------------------------------//
@@ -399,6 +436,7 @@ int main(int argc, char *argv[]) {
 //--------------------------------------------//
 // RENDER                                     //
 //--------------------------------------------//
+            debug(++step); // 6
             SDL_RenderClear(ren);
             SDL_RenderCopy(ren, textures["sky"], NULL, NULL);
             if (stage != PAUSE) {
@@ -414,7 +452,7 @@ int main(int argc, char *argv[]) {
                 scrollLayer(ren, "mnt3", 0, m3pos);
             }
             // Move and change obstical things for each one and display themvoid loadwords() {
-
+            debug(++step); // 7
             for (int i = 0; i < 5; i++) {
                 if (stage != PAUSE) {
                     obsticalPosA[i] -= obspeed;
@@ -442,6 +480,10 @@ int main(int argc, char *argv[]) {
 
             }
 
+            debug(++step); // 8
+            if (Debug)
+                std::cout << "Time: " << SDL_GetTicks() << std::endl; // 8
+
             switch(stage) {
             case GAME: {
                 score++;
@@ -460,13 +502,14 @@ int main(int argc, char *argv[]) {
                 SDL_RenderCopy(ren, Message, NULL, &scorePos);
                 scoreMsg = NULL;
                 SDL_FreeSurface(scoreMsg);
-                if (score % 1000 < 100) {
+                SDL_DestroyTexture(Message);
+                if (score % 1000 < 300) {
                     if (randcount == 0)
                         randword = rando(0,999);
                     randcount++;
                     SDL_Texture * ded;
                     SDL_Color red = {255,0,0};
-                    SDL_Color white = {255,255,255};
+                    //SDL_Color white = {255,255,255};
                     std::string dedstr;
                     if (score < 1000)
                         dedstr = "START!";
@@ -481,8 +524,8 @@ int main(int argc, char *argv[]) {
                     ded = wordTexture(ren, scoreFont, dedstr.c_str(), red);
 
                     int x = score % 1000;
-                    //int y = -.00001 * ((x-500)*(x-500)*(x-500)) + 320;
-                    float y = .005*pow(x-50,3)+320;
+                    float y = .0003*pow(x-150,3)+320;
+                    //float y = .005*pow(x-50,3)+320;
 
                     scorePos = makeRect(y - getTextureW(ded)/2, 480 / 4 + 480 / 64, getTextureW(ded), getTextureH(ded));
                     SDL_RenderCopy(ren, ded, NULL, &scorePos);
@@ -529,12 +572,11 @@ int main(int argc, char *argv[]) {
                 SDL_DestroyTexture(playerScore);
                 SDL_DestroyTexture(highscoreMessage);
 
-
                 break;
             }
             case TITLE: {
                 unsigned long int highscore = getHighScore();
-
+                score = 0;
                 SDL_Color color= {0,0,0};
                 SDL_Surface *scoreMsg;
                 std::string scoreString = "High Score: ";
@@ -576,7 +618,7 @@ int main(int argc, char *argv[]) {
                 if(SDL_GetTicks() % 1000 > 500 ) {
                     flashsize = (flashsize <= 0 ) ? 0 : flashsize - 1;
                 } else {
-                    flashsize = flashsize ++;
+                    flashsize++;
                 }
                 scorePos = makeRect(flashx + flashsize *flashsize /4 , flashy + flashsize, flashw - flashsize*flashsize /2, flashh- flashsize);
                 SDL_RenderCopyEx(ren, ded, NULL, &scorePos, -10, NULL, SDL_FLIP_NONE);
@@ -592,6 +634,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
             }
+            debug(++step); // 9
 
             if (stage != DEATH) {
                 // Create the box for where our player is
@@ -602,8 +645,9 @@ int main(int argc, char *argv[]) {
                 SDL_RenderCopy(ren, textures["player"], NULL, &playerRec);
             }
 
-
-
+            debug(++step); // 10
+            if( Debug)
+                std::cout << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
 
             SDL_RenderPresent(ren);
 
@@ -824,3 +868,10 @@ void loadwords() {
         randwords.push_back(str);
     }
 }
+
+/*Title: Paused
+Option:
+    type: check
+    text: "Music"
+    value: */
+
