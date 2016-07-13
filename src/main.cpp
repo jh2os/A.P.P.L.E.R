@@ -65,7 +65,7 @@ void loadwords();
 
 // GLOBALS
 
-const int groundLevel = 415;
+const int groundLevel = 398;
 const int playerForward = 50;
 const int FPS = 60;
 unsigned long score = 0;
@@ -135,13 +135,13 @@ int main(int argc, char *argv[]) {
     int obspeed = 10;
     int obsticalPos = 0;
     int obsticalArray[] = {0,0,0,0,0};
-    int obsticalPosA[] = {0, 680, 1360, 2040, 2720};
+    int obsticalPosA[] = {0, 260, 520, 780, 1040};
     gameState stage = TITLE;
     gameState buffer = TITLE;
     int flashsize = 0;
 
     // Load In all of our textures
-    textures.insert(std::make_pair("ground", loadImg(ren, "./res/reg/ground2.bmp")));
+    /*textures.insert(std::make_pair("ground", loadImg(ren, "./res/reg/ground2.bmp")));
     textures.insert(std::make_pair("mountains", loadImg(ren, "./res/reg/mountainss.bmp")));
     textures.insert(std::make_pair("mnt1", loadImg(ren, "./res/reg/mnt1.bmp")));
     textures.insert(std::make_pair("mnt2", loadImg(ren, "./res/reg/mnt2.bmp")));
@@ -150,14 +150,29 @@ int main(int argc, char *argv[]) {
     textures.insert(std::make_pair("obj3", loadImg(ren, "./res/reg/obj3.bmp")));
     textures.insert(std::make_pair("mountains2", loadImg(ren, "./res/reg/mountains2.bmp")));
     textures.insert(std::make_pair("sky", loadImg(ren, "./res/reg/sky.bmp")));
-    textures.insert(std::make_pair("clouds", loadImg(ren, "./res/reg/clouds.bmp")));
+    textures.insert(std::make_pair("clcurrentJumpState = IN_AIR;ouds", loadImg(ren, "./res/reg/clouds.bmp")));
     textures.insert(std::make_pair("player", loadImg(ren, "./res/reg/char.bmp")));
     textures.insert(std::make_pair("title", loadImg(ren, "./res/reg/title.bmp")));
 
+    // New style
+    //loadTexture(ren, "BG", "./res/reg/bg.bmp");*/
+
+    textures.insert(std::make_pair("BG", loadImg(ren, "./res/new/bg.bmp")));
+    textures.insert(std::make_pair("hills", loadImg(ren, "./res/new/hills.bmp")));
+    textures.insert(std::make_pair("player", loadImg(ren, "./res/new/player.bmp")));
+
+    textures.insert(std::make_pair("obj1", loadImg(ren, "./res/new/ob1.bmp")));
+    textures.insert(std::make_pair("obj2", loadImg(ren, "./res/new/ob2.bmp")));
+    textures.insert(std::make_pair("obj3", loadImg(ren, "./res/new/ob3.bmp")));
+    textures.insert(std::make_pair("obj4", loadImg(ren, "./res/new/ob4.bmp")));
+    //textures.insert(std::make_pair("obj5", loadImg(ren, "./res/new/ob5.bmp")));
+
     // Load our obsticals data
-    obsticals.push_back(obsticalLoad("./res/maps/ob2.txt"));
     obsticals.push_back(obsticalLoad("./res/maps/ob1.txt"));
+    obsticals.push_back(obsticalLoad("./res/maps/ob2.txt"));
     obsticals.push_back(obsticalLoad("./res/maps/ob3.txt"));
+    obsticals.push_back(obsticalLoad("./res/maps/ob4.txt"));
+    //obsticals.push_back(obsticalLoad("./res/maps/ob5.txt"));
 
     //sounds.insert(std::make_pair("jump", Mix_LoadWAV("./res/sounds/regular_jump.wav")));
     Mix_Chunk * jumpS = NULL;
@@ -238,6 +253,8 @@ int main(int argc, char *argv[]) {
                     if (stage == DEATH) {
                         changeState(stage, TITLE);
                         currentButtonState = BUTTON_OFF;
+                        for(int z = 0; z < 5; obsticalArray[z++] = 0);
+                        for(int z = -1; z < 4; obsticalPosA[++z] = 260 * z);
                     }
                     else if (stage != GAME && stage != PAUSE)
                         changeState(stage, GAME);
@@ -322,113 +339,75 @@ int main(int argc, char *argv[]) {
 // COLLISION DECTECTION                         //
 //----------------------------------------------//
             if (stage == GAME) {
-                // For the next two obsticals, get the number of ground segments and kill segments
-                int numoflife  = obsticals[obsticalArray[obsticalPos]].life.size();
-                int numofDeath = obsticals[obsticalArray[obsticalPos]].death.size();
-                int numoflife2 = obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life.size();
-                int numofDeath2= obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death.size();
-
-                // Assume we are in the air so we fall if necessary
                 currentJumpState = IN_AIR;
+                for (int j = 0; j < 5; j++ ) {
+                    // For the next two obsticals, get the number of ground segments and kill segments
+                    int numoflife  = obsticals[obsticalArray[j]].life.size();
+                    // Assume we are in the air so we fall if necessary
 
-                // Loop through all the ground segments and see if we are touching any, if we are set currentJumpState to ON_GROUND
-                // and exit the ltexoop
-                for(int i = 0; i < numoflife; i++) {
-                    if (obsticals[obsticalArray[obsticalPos]].life[i].x1 + obsticalPosA[obsticalPos] <= playerForward + 50 &&
-                        obsticals[obsticalArray[obsticalPos]].life[i].x2 + obsticalPosA[obsticalPos] >= playerForward ) {
-                        if (playerY == (float)groundLevel- obsticals[obsticalArray[obsticalPos]].life[i].y1) {
-                            playerY = groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1;
-                            currentJumpState = ON_GROUND;
-                            playerVel = 0;
-                            break;
-                        } else if ((playerY  > groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1 ) ) {
-                                if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1 ) {
-                                    playerY = groundLevel - obsticals[obsticalArray[obsticalPos]].life[i].y1;
+                    // Loop through all the ground segments and see if we are touching any, if we are set currentJumpState to ON_GROUND
+                    // and exit the ltexoop
+
+                    for(int i = 0; i < numoflife; i++) {
+                        if (obsticals[obsticalArray[j]].life[i].x1 + obsticalPosA[j] <= playerForward + 50 &&
+                            obsticals[obsticalArray[j]].life[i].x2 + obsticalPosA[j] >= playerForward ) {
+                            if ((playerY  > groundLevel - obsticals[obsticalArray[j]].life[i].y1 ) ) {
+                                if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[j]].life[i].y1 ) {
+                                    playerY = groundLevel - obsticals[obsticalArray[j]].life[i].y1;
                                     playerVel = 0;
                                     currentJumpState = ON_GROUND;
                                     break;
                                 }
-                            }
-                    }
-                }
-                // If we haven't touched ground on the previous obstical, check the next one
-                if (currentJumpState == IN_AIR) {
-                    for(int i = 0; i < numoflife2; i++) {
-                        if (obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].x1 + obsticalPosA[loopint(obsticalPos, 1, 5)] <= playerForward + 50 &&
-                        obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].x2 + obsticalPosA[loopint(obsticalPos, 1, 5)] >= playerForward ) {
-                            if (playerY == (float)groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) {
-                                playerY = groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1;
+                            } else if (playerY == (float)groundLevel- obsticals[obsticalArray[j]].life[i].y1) {
+                                playerY = groundLevel - obsticals[obsticalArray[j]].life[i].y1;
                                 currentJumpState = ON_GROUND;
                                 playerVel = 0;
                                 break;
-                            } else if ((playerY > groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) ) {
-                                if (playerY + playerVel <= groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1) {
-                                    playerY = groundLevel - obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].life[i].y1;
-                                    playerVel = 0;
-                                    currentJumpState = ON_GROUND;
-                                    break;
-                                }
                             }
                         }
                     }
-                }
 
+                }
                 // Lol if we are still not touching any ground, decrease velocity or fall
                 if (currentJumpState == IN_AIR) {
                     playerY += playerVel;
                 }
 
-
-                // Collision detection for death segments
                 segment playerTop;
                 segment playerBot;
                 segment playerLef;
                 segment playerRig;
 
                 // Set all of the vars ever
-                playerTop.x1 = playerForward;
-                playerBot.x1 = playerForward;
-                playerLef.x1 = playerForward;
-                playerRig.x1 = playerForward + 50;
-                playerTop.y1 = groundLevel - 50 - playerY;
-                playerBot.y1 = groundLevel - playerY;
-                playerLef.y1 = groundLevel - 50 - playerY;
-                playerRig.y1 = groundLevel - 50 - playerY;
-                playerTop.x2 = playerForward + 50;
-                playerBot.x2 = playerForward + 50;
-                playerLef.x2 = playerForward + 1;
-                playerRig.x2 = playerForward + 49;
-                playerTop.y2 = groundLevel - playerY - 50;
-                playerBot.y2 = groundLevel - playerY;
-                playerLef.y2 = groundLevel - playerY;
-                playerRig.y2 = groundLevel - playerY;
+                playerTop.x1 = playerForward; playerTop.y1 = groundLevel - 50 - playerY;
+                playerTop.x2 = playerForward + 50;  playerTop.y2 = groundLevel - playerY - 50;
 
-                for(int i = 0; i < numofDeath; i++) {
+                playerBot.x1 = playerForward; playerBot.y1 = groundLevel - playerY;
+                playerBot.x2 = playerForward + 50;  playerBot.y2 = groundLevel - playerY;
 
-                    segment deathseg = offsetX(obsticals[obsticalArray[obsticalPos]].death[i], obsticalPosA[obsticalPos] );
-                    float top = intersects(playerTop, deathseg);
-                    float bot = intersects(playerBot, deathseg);
-                    float lef =  intersects(playerLef, deathseg);
-                    float rig = intersects(playerRig, deathseg);
+                playerLef.x1 = playerForward; playerLef.y1 = groundLevel - 50 - playerY;
+                playerLef.x2 = playerForward + 1; playerLef.y2 = groundLevel - playerY;
 
-                    if ( top || bot || lef || rig){
-                        changeState(stage, DEATH);
-                        musicStart = 0;
+                playerRig.x1 = playerForward + 50; playerRig.y1 = groundLevel - 50 - playerY;
+                playerRig.x2 = playerForward + 49; playerRig.y2 = groundLevel - playerY;
+
+                for (int j = 0; j < 5; j++ ) {
+                    int numofDeath = obsticals[obsticalArray[j]].death.size();
+                    // Collision detection for death segments
+                    for(int i = 0; i < numofDeath; i++) {
+
+                        segment deathseg = offsetX(obsticals[obsticalArray[j]].death[i], obsticalPosA[j] );
+                        float top = intersects(playerTop, deathseg);
+                        float bot = intersects(playerBot, deathseg);
+                        float lef =  intersects(playerLef, deathseg);
+                        float rig = intersects(playerRig, deathseg);
+
+                        if ( top || bot || lef || rig){
+                            changeState(stage, DEATH);
+                            musicStart = 0;
+                        }
+
                     }
-
-                }
-
-                for(int i = 0; i < numofDeath2; i++) {
-                    // @TODO make these if cases like the ones above
-                    float top = intersects(playerTop, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
-                    float bot = intersects(playerBot, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
-                    float lef = intersects(playerLef, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
-                    float rig = intersects(playerRig, obsticals[obsticalArray[loopint(obsticalPos, 1, 5)]].death[i]);
-                    if ( top || bot || lef || rig ) {
-                        changeState(stage, DEATH);
-                        musicStart = 0;
-                    }
-
                 }
                 // End collision detection
             }
@@ -438,48 +417,61 @@ int main(int argc, char *argv[]) {
 //--------------------------------------------//
             debug(++step); // 6
             SDL_RenderClear(ren);
-            SDL_RenderCopy(ren, textures["sky"], NULL, NULL);
+            SDL_RenderCopy(ren, textures["BG"], NULL, NULL);
             if (stage != PAUSE) {
                 // Each layer has it's own scroll speed and position, function just moves them and displays them
-                scrollLayer(ren, "clouds", 1, cloudPos);
+                /*scrollLayer(ren, "clouds", 1, cloudPos);
                 scrollLayer(ren, "mnt1", 2, m2pos);
                 scrollLayer(ren, "mnt2", 3, scrollPos);
-                scrollLayer(ren, "mnt3", 5, m3pos);
+                scrollLayer(ren, "mnt3", 5, m3pos);*/
+                scrollLayer(ren, "hills", 5, m3pos);
             } else {
-                scrollLayer(ren, "clouds", 0, cloudPos);
+                /*scrollLayer(ren, "clouds", 0, cloudPos);
                 scrollLayer(ren, "mnt1", 0, m2pos);
                 scrollLayer(ren, "mnt2", 0, scrollPos);
-                scrollLayer(ren, "mnt3", 0, m3pos);
+                scrollLayer(ren, "mnt3", 0, m3pos);*/
+                scrollLayer(ren, "hills", 0, m3pos);
             }
+
+
             // Move and change obstical things for each one and display themvoid loadwords() {
             debug(++step); // 7
+
+            int swappos = -1;
+
+
             for (int i = 0; i < 5; i++) {
+
                 if (stage != PAUSE) {
                     obsticalPosA[i] -= obspeed;
-                    if (obsticalPosA[i] <= 0 - obsticals[obsticalArray[i]].width) {
+                    if (obsticalPosA[i] <= -obspeed - obsticals[obsticalArray[i]].width) {
                         // Move position i to last x coordinate
-                        obsticalPosA[i] = obsticalPosA[loopint(i, 4, 5)] + obsticals[obsticalArray[loopint(i, 4, 5)]].width;
+                        swappos = i;
+
                         if (stage != GAME && stage != PAUSE)
                             obsticalArray[i] = 0;
-                        else
-                            // Change it's type
-                            obsticalArray[i] = rando(0, obsticals.size());
 
                         obsticalPos = loopint(i,1,5);
 
 
                     }
+
                 }
 
                 SDL_Rect obpos;
                 obpos.x = obsticalPosA[i];
                 obpos.y = 0;
-                obpos.w = 690;
+                obpos.w = obsticals[obsticalArray[i]].width;
                 obpos.h = 480;
                 SDL_RenderCopy(ren, textures[obsticals[obsticalArray[i]].texture], NULL, &obpos);
 
             }
-
+            if (swappos != -1) {
+                obsticalPosA[swappos] = obsticalPosA[loopint(swappos, 4, 5)] + obsticals[obsticalArray[loopint(swappos, 4, 5)]].width;
+                if (stage == GAME ||  stage == PAUSE) {
+                    obsticalArray[swappos] = rando(0, obsticals.size());
+                }
+            }
             debug(++step); // 8
             if (Debug)
                 std::cout << "Time: " << SDL_GetTicks() << std::endl; // 8
